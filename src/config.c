@@ -173,7 +173,7 @@ int init_etm(cs_device_t dev)
   v4config.eventctlr0r = 0; /* disable all event tracing */
   v4config.eventctlr1r = 0;
   /* config */
-  v4config.stallcrlr = (1 << 13); /* NOOVERFLOW */
+  v4config.stallcrlr = 0x2100; /* NOOVERFLOW */
   v4config.syncpr = 0;            /* no sync */
   cs_etm_config_put_ex(dev, &v4config);
 
@@ -189,10 +189,15 @@ int configure_trace(const struct board *board, struct cs_devices_t *devices,
     return -1;
   }
 
-#if 0 /* XXX: Workaround for Jetson Nano */
+  /*
+  Increasing the maximum waiting time for the cs_device_wait() function.
+  On the Jetson TX2 board, it takes longer than the standard time to perform a flush.
+  */
+  _cs_set_wait_iterations(320000);
+
     /* Ensure TPIU isn't generating back-pressure */
     cs_disable_tpiu();
-#endif
+
   /* While programming, ensure we are not collecting trace */
   cs_sink_disable(devices->etb);
   for (i = 0; i < board->n_cpu; ++i) {
