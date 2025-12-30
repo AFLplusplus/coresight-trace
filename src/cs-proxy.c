@@ -52,7 +52,7 @@ extern bool decoding_on;
 extern unsigned char *trace_bitmap;
 extern unsigned int trace_bitmap_size;
 extern cov_type_t cov_type;
-
+char *ld_forksrv_path;
 /* Error reporting to forkserver controller */
 
 void send_forkserver_error(int error)
@@ -175,7 +175,30 @@ static void __afl_start_forkserver(char *argv[])
     close(FORKSRV_FD);
     close(FORKSRV_FD + 1);
 
-    execvp(argv[0], argv);
+   
+    char *ld_preload = "LD_PRELOAD=";
+    char *ld_library_path = "LD_LIBRARY_PATH=";
+
+    char *cs_ld_preload = getenv("CS_LD_PRELOAD");
+    char *cs_ld_lib_path = getenv("CS_LD_LIBRARY_PATH");
+
+    if(cs_ld_preload != NULL){
+      ld_preload = append_string(ld_preload,cs_ld_preload);
+    }
+    if(ld_library_path != NULL){
+      ld_library_path = append_string(ld_library_path, cs_ld_lib_path);
+    }
+
+    ld_preload = append_string(ld_preload,ld_forksrv_path);
+
+    
+    char* envp[] = {"CS_FORKSERVER=1", ld_preload, ld_library_path, NULL};
+
+    DEBUGF("Try run target: %s \n with envp=\n", argv[0]);
+      for (int i = 0; envp[i] != NULL; i++) {
+          DEBUGF("%s\n", envp[i]);
+      }
+    execve(argv[0], argv, envp);
 
     FATAL("Error: execv to target failed\n");
   }
@@ -324,7 +347,22 @@ int main(int argc, char *argv[])
   char **argvp;
   char *ptr;
 
+  ld_forksrv_path=get_libforksrv_path("libforksrv.so");
+  if(access(ld_forksrv_path, F_OK) != 0){
+    fprintf(stderr, "Error: libforksrv.so not found\n");
+    return -1;
+  }
+
+  if (geteuid() != 0) {
+    fprintf(stderr, "Error: root are required\n");
+    return -1;
+  }
   if (argc < 3) {
+    fprintf(stderr, "Error with argv\n");
+    return -1;
+  }
+  if(check_udmabuf() != 0){
+    fprintf(stderr, "Error: u-dma-buf kernel module are required\n");
     return -1;
   }
 

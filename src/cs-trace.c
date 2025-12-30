@@ -46,6 +46,7 @@ extern cov_type_t cov_type;
 
 extern unsigned char *trace_bitmap;
 extern unsigned int trace_bitmap_size;
+char *ld_forksrv_path;
 
 void child(char *argv[])
 {
@@ -55,7 +56,38 @@ void child(char *argv[])
   if (ret < 0) {
     perror("ptrace");
   }
-  execvp(argv[0], argv);
+  
+  char *ld_preload = "LD_PRELOAD=";
+  char *ld_library_path = "LD_LIBRARY_PATH=";
+
+  char *cs_ld_preload = getenv("CS_LD_PRELOAD");
+  char *cs_ld_lib_path = getenv("CS_LD_LIBRARY_PATH");
+  char *ld_no_forksrv = getenv("CS_NO_LD_FORKSRV");
+
+  if(cs_ld_preload != NULL){
+    ld_preload = append_string(ld_preload,cs_ld_preload);
+  }
+  if(ld_library_path != NULL){
+    ld_library_path = append_string(ld_library_path, cs_ld_lib_path);
+  }
+
+  if(ld_no_forksrv == NULL){
+    ld_preload = append_string(ld_preload,ld_forksrv_path);
+  }
+
+  char* envp[] = {ld_preload, ld_library_path, NULL};
+
+  fprintf(stdout, "Try run %s \nwith envp:\n", argv[0]);
+   for (int i = 0; envp[i] != NULL; i++) {
+        fprintf(stdout, " %s\n", envp[i]);
+    }
+  
+  ret = execve(argv[0],argv, envp);
+
+  if(ret !=0) {
+    fprintf(stderr, "Error with execvp\n");
+    exit(EXIT_FAILURE);
+  }
 }
 
 void parent(pid_t pid, int *child_status)
@@ -64,6 +96,8 @@ void parent(pid_t pid, int *child_status)
 
   waitpid(pid, &wstatus, 0);
   if (WIFSTOPPED(wstatus) && WSTOPSIG(wstatus) == PTRACE_EVENT_VFORK_DONE) {
+    ptrace(PTRACE_CONT, pid, NULL, NULL);
+    waitpid(pid, &wstatus, 0); 
     init_trace(getpid(), pid);
     start_trace(pid, true);
     ptrace(PTRACE_CONT, pid, NULL, NULL);
@@ -131,6 +165,22 @@ int main(int argc, char *argv[])
   argvp = NULL;
   registration_verbose = 0;
   trace_bitmap_size = DEFAULT_TRACE_BITMAP_SIZE;
+
+  ld_forksrv_path=get_libforksrv_path("libforksrv.so");
+  if(access(ld_forksrv_path, F_OK) != 0){
+    fprintf(stderr, "Error: libforksrv.so not found\n");
+    return -1;
+  }
+
+  if (geteuid() != 0) {
+      fprintf(stderr, "Error: Superuser (root) are required\n");
+      exit(EXIT_FAILURE);
+  }
+  
+  if(check_udmabuf() != 0){
+      fprintf(stderr, "Error: u-dma-buf kernel module are required\n");
+      exit(EXIT_FAILURE);
+  }
 
   if (argc < 3) {
     usage(argv[0]);
