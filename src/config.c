@@ -111,13 +111,12 @@ static int configure_etmv4_addr_range_cid(cs_device_t etm,
     tconfig.flags |= CS_ETMC_CXID_COMP;
   }
 
-  addridx = 0;
-  /* XXX: Assuming range[0] is the tracee itself. */
-  /* Set and enable Context ID filtering */
-  set_etmv4_addr_range(&range[0], &tconfig.addr_comps[addridx],
-                       cid > 0 ? (cididx << 4) | (0x1 << 2) : 0);
-  tconfig.addr_comps_acc_mask |= 0x3 << addridx;
-  tconfig.viiectlr |= 1 << (addridx / 2);
+  for (int i = 0; i < range_count; i++) {
+      set_etmv4_addr_range(&range[i], &tconfig.addr_comps[i * 2], 0);
+      tconfig.addr_comps_acc_mask |= 0x3 << (i * 2);
+      /* program the address comp pair i for include */
+      tconfig.viiectlr |= 1 << i;
+  }
 
   tconfig.flags |= CS_ETMC_ADDR_COMP;
 

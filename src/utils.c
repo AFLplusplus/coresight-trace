@@ -113,7 +113,10 @@ int setup_map_info(pid_t pid, struct map_info *map_info, int info_count_max)
   off_t offset;
   char x;
   char c;
-
+  char *trace_lib_name = getenv("CS_TRACE_LIB");
+  if(trace_lib_name != NULL) {
+    printf("Try trace lib: %s\n", trace_lib_name);
+  }
   memset(maps_path, 0, sizeof(maps_path));
   snprintf(maps_path, sizeof(maps_path), "/proc/%d/maps", pid);
 
@@ -136,11 +139,27 @@ int setup_map_info(pid_t pid, struct map_info *map_info, int info_count_max)
       /* Not an executable region */
       continue;
     }
-    if (count >= info_count_max) {
-      fprintf(stderr, "INFO: [0x%lx-0x%lx] will not be traced\n", start, end);
+    if(count >= info_count_max) {
       continue;
     }
-    /* Search absolute path */
+    if(count == info_count_max - 1) {
+      if(line && trace_lib_name) {
+        char *path=strchr(line, '/');
+        if(path) {
+          if(strstr(path,trace_lib_name)) {
+            printf("TRACE LIB: %s\n",line);
+          }else {     
+            continue;
+          }
+        }else {
+          continue;
+        }
+      }
+      else {
+        continue;
+      }
+    }
+    printf("TRACE: %s\n",line);
     path = strchr(line, '/');
     if (!path) {
       continue;
