@@ -588,6 +588,30 @@ bool is_syscall_exit_group(pid_t pid)
   return false;
 }
 
+int check_udmabuf()
+{
+  FILE *fp = fopen("/proc/modules", "r");
+  if (!fp) {
+      perror("Error open /proc/modules");
+      exit(EXIT_FAILURE);
+  }
+
+  char line[256];
+  int found = -1;
+
+  while (fgets(line, sizeof(line), fp)) {
+      char module_name[64];
+      if (sscanf(line, "%63s", module_name) == 1) {
+          if (strcmp(module_name, "u_dma_buf") == 0) {
+              found = 0;
+              break;
+          }
+      }
+  }
+  fclose(fp);
+  return found;
+}
+
 int get_udmabuf_info(int udmabuf_num, unsigned long *phys_addr, size_t *size)
 {
   const char *udmabuf_root = "/sys/class/u-dma-buf";
@@ -644,4 +668,31 @@ int get_udmabuf_info(int udmabuf_num, unsigned long *phys_addr, size_t *size)
   close(fd);
 
   return 0;
+}
+
+char* append_string(char* str1, char* str2)
+{
+  if(!str1) str1 ="";
+  if(!str2) str2 ="";
+
+  size_t len1 = strlen(str1);
+  size_t len2 = strlen(str2);
+  char * result = malloc(len1+len2+1);
+  if(result) {
+    memcpy(result, str1, len1);
+    memcpy(result+len1, str2,len2+1); 
+  }
+  return result;
+}
+
+char* get_libforksrv_path(char* libname)
+{
+  static char lib_path[PATH_MAX];
+  char exe_path[PATH_MAX];
+  ssize_t len = readlink("/proc/self/exe",exe_path, sizeof(exe_path)-1);
+  if(len == -1) return NULL;
+  exe_path[len]='\0';
+  dirname(exe_path);
+  snprintf(lib_path, sizeof(lib_path),"%s/%s", exe_path, libname);
+  return lib_path;
 }

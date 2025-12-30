@@ -51,5 +51,7 @@ void read_pid_fd_path(pid_t pid, int fd, char *buf, size_t size);
 int get_mmap_params(pid_t pid, struct mmap_params *params);
 bool is_syscall_exit_group(pid_t pid);
 int get_udmabuf_info(int udmabuf_num, unsigned long *phys_addr, size_t *size);
-
+int check_udmabuf(void);
+char* append_string(char* str1, char* str2);
+char* get_libforksrv_path(char* libname);
 #endif /* CS_TRACE_UTILS_H */
