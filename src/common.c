@@ -35,7 +35,7 @@
 #include "utils.h"
 
 #define DEFAULT_TRACE_CPU 0
-#define DEFAULT_DECODER_CPU -1
+#define DEFAULT_DECODER_CPU 1
 #define DEFAULT_UDMABUF_NUM 0
 #define DEFAULT_ETF_SIZE 0x1000
 #define DEFAULT_TRACE_SIZE 0x800000
@@ -749,9 +749,9 @@ int init_trace(pid_t parent_pid, pid_t pid)
 
     /* Using find_free_cpu() for decoder thread decreases performance on
      * Marvell ThunderX2. The tracee process and the decoder thread should be
-     * in the same CPU core group. DEFAULT_DECODER_CPU fallback is -1.
+     * in the same CPU core group. DEFAULT_DECODER_CPU fallback is 1.
      */
-    if ((decoder_cpu = get_preferred_cpu(pid)) < 0) {
+    if ((decoder_cpu = get_preferred_cpu(pid)) < 0 || decoder_cpu == trace_cpu) {
       decoder_cpu = DEFAULT_DECODER_CPU;
     }
     if (decoder_cpu >= 0) {
