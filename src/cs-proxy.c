@@ -293,7 +293,14 @@ int main(int argc, char *argv[])
 
   argvp = NULL;
   registration_verbose = 0;
-  decoding_on = true;
+
+  if (getenv("AFLCS_NO_DECODER")) {
+    OKF("afl-cs-proxy decoder OFF");
+    decoding_on = false;
+  }else {
+    OKF("afl-cs-proxy decoder ON");
+    decoding_on = true;
+  }
 
   /* here you specify the map size you need that you are reporting to
      afl-fuzz.  Any value is fine as long as it can be divided by 32. */
@@ -344,6 +351,9 @@ int main(int argc, char *argv[])
 
     if (stop_trace(false) < 0) return -1;
 
+    if(!decoding_on){
+      trace_bitmap[0] = 1;
+    }
     /* report the test case is done and wait for the next */
     if (__afl_end_testcase(status) < 0) return -1;
 
