@@ -16,6 +16,7 @@ coresight-trace supports the following boards (SoCs):
 * NVIDIA Jetson TX2 (NVIDIA Parker)
 * NVIDIA Jetson Nano (NVIDIA Tegra X1)
 * GIGABYTE R181-T90 (Marvell ThunderX2 CN99XX)
+* TaiShan 2280 (Hi1616)
 
 To port coresight-trace to other boards, consult the SoC the documents whether CoreSight is available on the target.
 
@@ -57,12 +58,12 @@ It will biuld `cs-proxy` only if the repository is located under the AFL++ CoreS
 
 ### Install u-dma-buf
 
-Before run cs-trace or cs-proxy, build and install the `u-dma-buf` kernel module. The allocated DMA region size is 512 KiB (0x80000) for instance:
+Before run cs-trace or cs-proxy, build and install the `u-dma-buf` kernel module. The allocated DMA region size is 8MB (0x800000) for instance:
 
 ```bash
 cd u-dma-buf
 make
-sudo insmod u-dma-buf.ko udmabuf0=0x80000
+sudo insmod u-dma-buf.ko udmabuf0=0x800000
 ```
 
 It creates a `/dev/udmabuf0` pseudo-device.
