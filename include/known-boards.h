@@ -269,6 +269,72 @@ static int do_registration_jetsontx2(struct cs_devices_t *devices)
   return 0;
 }
 
+static int do_registration_hi1616(struct cs_devices_t *devices)
+{
+  cs_device_t cluster_funnel[4], etf[4], main_funnel, tpiu, etr;
+  cs_physaddr_t const etm_bases[4] = { 0x44c40000, 0x45440000, 0x45c40000, 0x46440000 };
+
+  printf("CSDEMO: Registering CoreSight romtable...\n");
+  cs_register_romtable(0x44000000);
+
+  cluster_funnel[0]=cs_device_register(0x44802000);
+  cluster_funnel[1]=cs_device_register(0x45002000);
+  cluster_funnel[2]=cs_device_register(0x45802000);
+  cluster_funnel[3]=cs_device_register(0x46002000);
+  
+  printf("CSDEMO: Registering ETM...\n");
+  int cpu_id = 0;
+  for (int i = 0; i < 4; ++i) { 
+    for (int j = 0; j < 4; ++j) {
+      cs_device_t etm = cs_device_register(etm_bases[i]+j*0x100000);
+      cs_device_set_affinity(etm, cpu_id);
+      cs_atb_register(cs_cpu_get_device(cpu_id, CS_DEVCLASS_SOURCE), 0, cluster_funnel[i], j);
+      cpu_id++;
+    }
+  }
+
+  printf("CSDEMO: Registering etf...\n");
+  etf[0]=cs_device_register(0x44803000);
+  etf[1]=cs_device_register(0x45003000);
+  etf[2]=cs_device_register(0x45803000);
+  etf[3]=cs_device_register(0x46003000);
+  
+  main_funnel = cs_device_register(0x44005000);
+
+  printf("CSDEMO: Registering funnels...\n");
+  for (int i = 0; i < 4; ++i) {
+    cs_atb_register(cluster_funnel[i], 0, etf[i], 0);
+    cs_atb_register(etf[i], 0, main_funnel, i);
+  }
+
+  printf("CSDEMO: Registering etr, tpiu...\n");
+  etr = cs_device_register(0x44001000);
+  tpiu = cs_device_register(0x44004000);
+
+  cs_atb_register(main_funnel, 0, etr, 0);
+
+  for (int i = 0; i < 16; ++i) {
+    devices->cpu_id[i] = 0xD08;
+  }
+
+  if(etr_mode) {
+    devices->etb=etr;
+    for (size_t i = 0; i < 4; i++) {
+      devices->trace_sinks[i] = etf[i];
+    }
+  }else {
+    // one etf
+    devices->etb=etf[0];
+    devices->trace_sinks[0] = NULL;
+  }
+  
+  // Enable main funnel ports
+  cs_trace_enable(etf[0]);
+
+  printf("CSDEMO: Registration is completed\n");
+  return 0;
+}
+
 const struct board known_boards[] = {
     {
         .do_registration = do_registration_thunderx2,
@@ -288,7 +354,12 @@ const struct board known_boards[] = {
         .hardware = "Jetson TX2",
         .etr_axictl = AXICTL_COMMON | CS_ETB_AXICTL_WR_BURST_4,
     },
-    {},
+    {
+        .do_registration = do_registration_hi1616,
+        .n_cpu = 16,
+        .hardware = "Hi1616",
+    },
+    {}
 };
 
 int get_trace_id(const char *hardware, int cpu)
@@ -302,6 +373,8 @@ int get_trace_id(const char *hardware, int cpu)
       return 0x10 + cpu - 2;
     }
   } else if (strcmp(hardware, "Jetson Nano") == 0) {
+    return 0x10 + cpu;
+  } else if (strcmp(hardware, "Hi1616") == 0) {
     return 0x10 + cpu;
   }
 
