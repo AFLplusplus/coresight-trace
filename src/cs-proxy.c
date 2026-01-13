@@ -272,7 +272,7 @@ int main(int argc, char *argv[])
   char **argvp;
   char *ptr;
 
-  ld_forksrv_path=get_libforksrv_path("libforksrv.so");
+  ld_forksrv_path = get_libforksrv_path("libforksrv.so");
   if(access(ld_forksrv_path, F_OK) != 0){
     fprintf(stderr, "Error: libforksrv.so not found\n");
     return -1;
