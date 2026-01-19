@@ -35,10 +35,10 @@
 #include "utils.h"
 
 #define DEFAULT_TRACE_CPU 0
-#define DEFAULT_DECODER_CPU -1
+#define DEFAULT_DECODER_CPU 1
 #define DEFAULT_UDMABUF_NUM 0
 #define DEFAULT_ETF_SIZE 0x1000
-#define DEFAULT_TRACE_SIZE 0x80000
+#define DEFAULT_TRACE_SIZE 0x800000
 #define DEFAULT_TRACE_NAME "cstrace.bin"
 #define DEFAULT_TRACE_ARGS_NAME "decoderargs.txt"
 
@@ -244,17 +244,19 @@ static void *decoder_worker(void *arg)
   if (etr_ram_size == 0) {
     etr_ram_size = cs_get_buffer_size_bytes(devices.etb);
   }
-  if (devices.trace_sinks[0]) {
-    etf_ram_size = (size_t)cs_get_buffer_size_bytes(devices.trace_sinks[0]);
-    if (etf_ram_size < etr_ram_size) {
-      decoding_threshold = etf_ram_size * 2;
-    } else {
-      decoding_threshold = etr_ram_size;
-    }
-  } else {
-    decoding_threshold = etr_ram_size;
-  }
+  // if (devices.trace_sinks[0]) {
+  //   etf_ram_size = (size_t)cs_get_buffer_size_bytes(devices.trace_sinks[0]);
+  //   if (etf_ram_size < etr_ram_size) {
+  //     decoding_threshold = etf_ram_size * 2;
+  //   } else {
+  //     decoding_threshold = etr_ram_size;
+  //   }
+  // } else {
+  //   decoding_threshold = etr_ram_size;
+  // }
 
+  // Set a threshold value equal to the etr buffer size to avoid pausing the tracing
+  decoding_threshold = etr_ram_size;
   while (1) {
     pthread_mutex_lock(&trace_event_mutex);
     while (trace_event != start_event && trace_event != fini_event) {
@@ -747,9 +749,9 @@ int init_trace(pid_t parent_pid, pid_t pid)
 
     /* Using find_free_cpu() for decoder thread decreases performance on
      * Marvell ThunderX2. The tracee process and the decoder thread should be
-     * in the same CPU core group. DEFAULT_DECODER_CPU fallback is -1.
+     * in the same CPU core group. DEFAULT_DECODER_CPU fallback is 1.
      */
-    if ((decoder_cpu = get_preferred_cpu(pid)) < 0) {
+    if ((decoder_cpu = get_preferred_cpu(pid)) < 0 || decoder_cpu == trace_cpu) {
       decoder_cpu = DEFAULT_DECODER_CPU;
     }
     if (decoder_cpu >= 0) {

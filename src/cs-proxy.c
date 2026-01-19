@@ -40,7 +40,6 @@ s32 fsrv_pid = -1;
 s32 proxy_ctl_fd = -1;
 s32 proxy_st_fd = -1;
 u8 first_run = 1;
-u8 no_forksrv = 0;
 
 #ifdef EXEC_COUNT
 u32 exec_count = 0;
@@ -52,7 +51,7 @@ extern bool decoding_on;
 extern unsigned char *trace_bitmap;
 extern unsigned int trace_bitmap_size;
 extern cov_type_t cov_type;
-
+char *ld_forksrv_path;
 /* Error reporting to forkserver controller */
 
 void send_forkserver_error(int error)
@@ -175,7 +174,30 @@ static void __afl_start_forkserver(char *argv[])
     close(FORKSRV_FD);
     close(FORKSRV_FD + 1);
 
-    execvp(argv[0], argv);
+   
+    char *ld_preload = "LD_PRELOAD=";
+    char *ld_library_path = "LD_LIBRARY_PATH=";
+
+    char *cs_ld_preload = getenv("CS_LD_PRELOAD");
+    char *cs_ld_lib_path = getenv("CS_LD_LIBRARY_PATH");
+
+    if(cs_ld_preload != NULL){
+      ld_preload = append_string(ld_preload,cs_ld_preload);
+    }
+    if(ld_library_path != NULL){
+      ld_library_path = append_string(ld_library_path, cs_ld_lib_path);
+    }
+
+    ld_preload = append_string(ld_preload,ld_forksrv_path);
+
+    
+    char* envp[] = {"CS_FORKSERVER=1", ld_preload, ld_library_path, NULL};
+
+    DEBUGF("Try run target: %s \n with envp=\n", argv[0]);
+      for (int i = 0; envp[i] != NULL; i++) {
+          DEBUGF("%s\n", envp[i]);
+      }
+    execve(argv[0], argv, envp);
 
     FATAL("Error: execv to target failed\n");
   }
@@ -241,80 +263,6 @@ static s32 __afl_end_testcase(s32 status)
   return 0;
 }
 
-static s32 __afl_fauxsrv_execv(char *argv[])
-{
-  u8 tmp[4] = {0, 0, 0, 0};
-  int status = 0;
-  s32 was_killed, child_pid;
-
-  /* Phone home and tell the parent that we're OK. */
-
-  if (write(FORKSRV_FD + 1, tmp, 4) != 4) return -1;
-
-  while (1) {
-    /* Wait for parent by reading from the pipe. Abort if read fails. */
-    if (read(FORKSRV_FD, &was_killed, 4) != 4) return -1;
-
-    /* Create a clone of our process. */
-
-    child_pid = fork();
-
-    if (child_pid < 0) {
-      PFATAL("Fork failed");
-    }
-
-    /* In child process: close fds, resume execution. */
-
-    if (!child_pid) {
-      /* TODO: Add SIGPIPE handling */
-
-      close(FORKSRV_FD);
-      close(FORKSRV_FD + 1);
-
-      if (ptrace(PTRACE_TRACEME, 0, NULL, NULL) < 0) {
-        PFATAL("ptrace failed");
-      }
-
-      execvp(argv[0], argv);
-
-      WARNF("Error: execv to target failed\n");
-      break;
-    }
-
-    waitpid(child_pid, &status, 0);
-    if (WIFSTOPPED(status) && WSTOPSIG(status) == PTRACE_EVENT_VFORK_DONE) {
-      init_trace(getpid(), child_pid);
-      start_trace(child_pid, true);
-      ptrace(PTRACE_CONT, child_pid, NULL, NULL);
-    }
-
-    /* In parent process: write PID to AFL. */
-    if (write(FORKSRV_FD + 1, &child_pid, 4) != 4) return -1;
-
-    /* Handle child process suspend/resume */
-    while (1) {
-      waitpid(child_pid, &status, 0);
-      if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGSTOP) {
-        trace_suspend_resume_callback();
-      } else {
-        /* Child process has exited. */
-        break;
-      }
-    }
-
-    if (stop_trace(false) < 0) return -1;
-
-    /* Relay wait status to AFL pipe, then loop back. */
-    if (write(FORKSRV_FD + 1, &status, 4) != 4) return -1;
-
-#ifdef EXEC_COUNT
-    if (++exec_count > EXEC_COUNT) return 0;
-#endif
-  }
-
-  return 0;
-}
-
 /* you just need to modify the while() loop in this main() */
 
 int main(int argc, char *argv[])
@@ -324,13 +272,35 @@ int main(int argc, char *argv[])
   char **argvp;
   char *ptr;
 
+  ld_forksrv_path = get_libforksrv_path("libforksrv.so");
+  if(access(ld_forksrv_path, F_OK) != 0){
+    fprintf(stderr, "Error: libforksrv.so not found\n");
+    return -1;
+  }
+
+  if (geteuid() != 0) {
+    fprintf(stderr, "Error: root are required\n");
+    return -1;
+  }
   if (argc < 3) {
+    fprintf(stderr, "Error with argv\n");
+    return -1;
+  }
+  if(check_udmabuf() != 0){
+    fprintf(stderr, "Error: u-dma-buf kernel module are required\n");
     return -1;
   }
 
   argvp = NULL;
   registration_verbose = 0;
-  decoding_on = true;
+
+  if (getenv("AFLCS_NO_DECODER")) {
+    OKF("afl-cs-proxy decoder OFF");
+    decoding_on = false;
+  }else {
+    OKF("afl-cs-proxy decoder ON");
+    decoding_on = true;
+  }
 
   /* here you specify the map size you need that you are reporting to
      afl-fuzz.  Any value is fine as long as it can be divided by 32. */
@@ -349,10 +319,6 @@ int main(int argc, char *argv[])
   /* Mark as AFL++ CoreSight mode is enabled. */
   setenv("__AFLCS_ENABLE", "1", 0);
 
-  if (getenv("AFLCS_NO_FORKSRV")) {
-    no_forksrv = 1;
-  }
-
   if ((ptr = getenv("AFLCS_COV")) != NULL) {
     if (!strcmp(ptr, "edge")) {
       cov_type = edge_cov;
@@ -368,12 +334,7 @@ int main(int argc, char *argv[])
   }
 
   /* then we initialize the shared memory map and start the forkserver */
-  __afl_map_shm();
-
-  if (no_forksrv) {
-    return __afl_fauxsrv_execv(argvp);
-  }
-
+  __afl_map_shm();  
   __afl_start_forkserver(argvp);
 
   while (__afl_next_testcase() > 0) {
@@ -390,6 +351,9 @@ int main(int argc, char *argv[])
 
     if (stop_trace(false) < 0) return -1;
 
+    if(!decoding_on){
+      trace_bitmap[0] = 1;
+    }
     /* report the test case is done and wait for the next */
     if (__afl_end_testcase(status) < 0) return -1;
 

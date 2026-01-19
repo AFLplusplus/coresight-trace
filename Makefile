@@ -27,7 +27,7 @@ LIBCSDEC:=$(CSDEC_BASE)/libcsdec.a
 UDMABUF_BASE:=udmabuf
 UDMABUF_KMOD:=$(UDMABUF_BASE)/u-dma-buf.ko
 UDMABUF_BUF_PATH:=/dev/udmabuf0
-UDMABUF_BUF_SIZE:=0x80000
+UDMABUF_BUF_SIZE:=0x800000
 
 INC:=include
 
@@ -59,6 +59,7 @@ endif
 
 ifneq ($(strip $(DEBUG)),)
   CFLAGS+=-g -O0
+  CSDEC_TARGET = debug
 else
   CFLAGS+=-Ofast
 endif
@@ -80,6 +81,9 @@ ifneq ($(strip $(DEBUG)),)
   CS_TRACE_FLAGS+=--export --verbose=0
 endif
 
+LIBFORKSRV:=libforksrv.so
+LIBFORKSRV_PATH:=libforksrv
+
 TESTS:= \
   tests/fib \
 
@@ -88,7 +92,7 @@ DIR?=trace/$(DATE)
 TRACEE?=tests/fib
 TRACEE_ARGS?=
 
-all: $(CS_TRACE) $(TESTS)
+all: $(CS_TRACE) $(TESTS) $(LIBFORKSRV)
 ifeq ($(shell test -d $(INC)/afl/; echo $$?),0)
 all: $(CS_PROXY)
 endif
@@ -110,7 +114,7 @@ format:
 	clang-format -i $(INC)/*.h src/*.c
 
 $(LIBCSDEC):
-	$(MAKE) -C $(CSDEC_BASE)
+	$(MAKE) -C $(CSDEC_BASE) $(CSDEC_TARGET)
 
 $(CSDEC): $(LIBCSDEC)
 
@@ -119,6 +123,10 @@ $(CS_PROXY): $(CS_PROXY_OBJS) $(LIBCSACCESS) $(LIBCSACCUTIL) $(LIBCSDEC)
 
 $(CS_TRACE): $(CS_TRACE_OBJS) $(LIBCSACCESS) $(LIBCSACCUTIL) $(LIBCSDEC)
 	$(CXX) -o $@ $^ $(CFLAGS)
+
+$(LIBFORKSRV):
+	$(MAKE) -C  $(LIBFORKSRV_PATH) && \
+	cp $(LIBFORKSRV_PATH)/libforksrv.so ./libforksrv.so
 
 libcsal:
 	$(MAKE) -C $(CSAL_BASE) $(CSAL_FLAGS)
@@ -134,7 +142,8 @@ $(UDMABUF_BUF_PATH): | $(UDMABUF_KMOD)
 	sudo insmod $(UDMABUF_KMOD) $(notdir $@)=$(UDMABUF_BUF_SIZE)
 
 clean:
-	rm -f $(CS_PROXY_OBJS) $(CS_PROXY) $(CS_TRACE_OBJS) $(CS_TRACE) $(TESTS)
+	rm -f $(CS_PROXY_OBJS) $(CS_PROXY) $(CS_TRACE_OBJS) $(CS_TRACE) $(TESTS) $(LIBFORKSRV)
+	$(MAKE) -C $(LIBFORKSRV_PATH) clean
 
 dist-clean: clean
 	$(MAKE) -C $(CSAL_BASE) clean $(CSAL_FLAGS)
