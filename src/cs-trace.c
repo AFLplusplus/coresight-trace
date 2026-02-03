@@ -62,7 +62,7 @@ void child(char *argv[])
 
   char *cs_ld_preload = getenv("CS_LD_PRELOAD");
   char *cs_ld_lib_path = getenv("CS_LD_LIBRARY_PATH");
-  char *ld_no_forksrv = getenv("CS_NO_LD_FORKSRV");
+  char *cs_defer_forksrv = getenv("CS_DEFER_FORKSRV");
 
   if(cs_ld_preload != NULL){
     ld_preload = append_string(ld_preload,cs_ld_preload);
@@ -71,11 +71,11 @@ void child(char *argv[])
     ld_library_path = append_string(ld_library_path, cs_ld_lib_path);
   }
 
-  if(ld_no_forksrv == NULL){
+  if(cs_defer_forksrv == NULL){
     ld_preload = append_string(ld_preload,ld_forksrv_path);
   }
 
-  char* envp[] = {ld_preload, ld_library_path, NULL};
+  char* envp[] = {"__CS_TRACE=1",ld_preload, ld_library_path, NULL};
 
   fprintf(stdout, "Try run %s \nwith envp:\n", argv[0]);
    for (int i = 0; envp[i] != NULL; i++) {
@@ -235,8 +235,8 @@ int main(int argc, char *argv[])
   }
 
   argvp = &argv[optind];
-  if (!argvp) {
-    usage(argv[0]);
+  if (!argvp || access(argvp[0], F_OK) != 0) {
+    fprintf(stderr, "The target executable file '%s' was not found\n", argvp[0]);
     exit(EXIT_FAILURE);
   }
 
