@@ -98,6 +98,11 @@ This runs `$(TRACEE)` (`tests/fib` by default) as a trace target under `trace/$(
 
 coresight-trace uses [RICSec/coresight-decoder](https://github.com/RICSecLab/coresight-decoder), a new CoreSight trace decoder optimized for fuzzing feedback. It currently supports AFL-style edge coverage and [PTrix](https://github.com/junxzm1990/afl-pt)-style path coverage. Refer to the [coresight-decoder README](https://github.com/RICSecLab/coresight-decoder/blob/master/README.md) for further infomation.
 
+
+### Deferred forkserver 
+
+See the example from the [tests/def_forksrv](tests/def_forksrv)
+
 ## Limitations
 
 Currently, coresight-trace supports trace sources with ARM64 ETMv4 and later. 32-bit Arm or ETMv3 or earlier is not supported. It also requires an ETR trace sink to achieve better performance.
