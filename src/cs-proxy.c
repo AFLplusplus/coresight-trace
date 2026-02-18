@@ -251,7 +251,7 @@ static u32 __afl_next_testcase(void)
 
   /* report that we are starting the target */
   if (write(FORKSRV_FD + 1, &child_pid, 4) != 4) return -1;
-
+  usleep(100);
   /* Resume child process. */
   kill(child_pid, SIGCONT);
 
@@ -265,6 +265,12 @@ static s32 __afl_end_testcase(s32 status)
   return 0;
 }
 
+void save_trace_on_abort_handler(int sig){
+  signal(SIGABRT, SIG_DFL);
+  export_trace("cstrace.bin", "decoderargs.txt");
+  abort();
+}
+
 /* you just need to modify the while() loop in this main() */
 
 int main(int argc, char *argv[])
@@ -274,6 +280,11 @@ int main(int argc, char *argv[])
   char **argvp;
   char *ptr;
 
+  if(signal(SIGABRT, save_trace_on_abort_handler) == SIG_ERR) {
+    perror("Failed to set signal handler");
+    return 1;
+  }
+ 
   ld_forksrv_path = get_libforksrv_path("libforksrv.so");
   if(access(ld_forksrv_path, F_OK) != 0){
     fprintf(stderr, "Error: libforksrv.so not found\n");

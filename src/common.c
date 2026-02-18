@@ -433,7 +433,7 @@ static void free_trace_buf(void)
   }
 }
 
-static int export_trace(const char *trace_name, const char *trace_args_name)
+int export_trace(const char *trace_name, const char *trace_args_name)
 {
   int ret;
   char *cwd;
@@ -442,7 +442,7 @@ static int export_trace(const char *trace_name, const char *trace_args_name)
   FILE *fp;
 
   ret = -1;
-
+  fprintf("Exporting a trace to %s and %s\n", trace_name, trace_args_name);
   cwd = getcwd(NULL, 0);
   if (!cwd) {
     perror("getcwd");
