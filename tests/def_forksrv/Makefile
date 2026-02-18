@@ -6,7 +6,7 @@ FORKSRVPATH = ../../libforksrv/libforksrv.a
 all: $(APP)
 
 $(APP): main.c  
-	$(CC) $(CFLAGS) -o $(APP) main.c $(FORKSRVPATH)
+	$(CC) $(CFLAGS) -o $(APP) -static main.c $(FORKSRVPATH)
  
 trace: $(APP)
 	sudo CS_DEFER_FORKSRV=1 ../../cs-trace --decoding=edge -- ./$(APP)
@@ -18,4 +18,4 @@ test: $(APP) trace clean
 clean:
 	rm -f $(APP) *.o cstrace.bin decoderargs.txt
 
-.PHONY: all run clean 
+.PHONY: all clean test fuzz trace
