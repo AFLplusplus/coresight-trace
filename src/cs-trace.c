@@ -42,6 +42,7 @@ extern int udmabuf_num;
 extern bool decoding_on;
 extern int trace_cpu;
 extern bool export_config;
+extern bool coverage;
 extern cov_type_t cov_type;
 
 extern unsigned char *trace_bitmap;
@@ -136,8 +137,9 @@ static void usage(char *argv0)
           export_config);
   fprintf(stderr,
           "  -u, --udmabuf=INT\t\tspecify u-dma-buf device number to use "
-          "(default: %d)",
+          "(default: %d)\n",
           udmabuf_num);
+  fprintf(stderr, "  -l, --coverage\t\tcreate coverage file for lighthouse plugin\n");
   fprintf(stderr,
           "  -v, --verbose[=INT]\t\tverbose output level (default: %d)\n",
           registration_verbose);
@@ -150,6 +152,7 @@ int main(int argc, char *argv[])
       {"board", required_argument, NULL, 'b'},
       {"cpu", required_argument, NULL, 'c'},
       {"decoding", required_argument, NULL, 'd'},
+      {"coverage", no_argument, NULL, "l" },
       {"export", no_argument, NULL, 'e'},
       {"udmabuf", required_argument, NULL, 'u'},
       {"verbose", optional_argument, NULL, 'v'},
@@ -166,7 +169,12 @@ int main(int argc, char *argv[])
   registration_verbose = 0;
   trace_bitmap_size = DEFAULT_TRACE_BITMAP_SIZE;
 
-  ld_forksrv_path=get_libforksrv_path("libforksrv.so");
+  if (argc < 3) {
+    usage(argv[0]);
+    exit(EXIT_SUCCESS);
+  }
+
+  ld_forksrv_path = get_libforksrv_path("libforksrv.so");
   if(access(ld_forksrv_path, F_OK) != 0){
     fprintf(stderr, "Error: libforksrv.so not found\n");
     return -1;
@@ -182,12 +190,7 @@ int main(int argc, char *argv[])
       exit(EXIT_FAILURE);
   }
 
-  if (argc < 3) {
-    usage(argv[0]);
-    exit(EXIT_SUCCESS);
-  }
-
-  while ((opt = getopt_long(argc, argv, "b:c:d:ev::h", long_options,
+  while ((opt = getopt_long(argc, argv, "b:c:d:lev::h", long_options,
                             &option_index)) != -1) {
     switch (opt) {
       case 'b':
@@ -210,6 +213,9 @@ int main(int argc, char *argv[])
       case 'e':
         export_config = true;
         break;
+      case 'l':
+        coverage = true;
+        break;
       case 'u':
         udmabuf_num = atoi(optarg);
         break;
@@ -231,6 +237,11 @@ int main(int argc, char *argv[])
 
   if (argc <= optind || strcmp(argv[optind - 1], "--")) {
     usage(argv[0]);
+    exit(EXIT_FAILURE);
+  }
+
+  if(!decoding_on && coverage || coverage && (cov_type == path_cov)){
+    fprintf(stderr, "Error! The coverage option is only available while --decoding=edge\n", optarg);
     exit(EXIT_FAILURE);
   }
 
