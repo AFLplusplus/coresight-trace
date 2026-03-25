@@ -132,7 +132,7 @@ This file stores the instruction execution stream in `Module + Offset (modoff)` 
 
 ## Limitations
 
-Currently, coresight-trace supports trace sources with ARM64 ETMv4 and later. 32-bit Arm or ETMv3 or earlier is not supported. It also requires an ETR trace sink to achieve better performance.
+Currently, coresight-trace supports trace sources with ARM64 ETMv4 and later. ETMv3 or earlier is not supported. It also requires an ETR trace sink to achieve better performance.
 
 ## Contributing
 
