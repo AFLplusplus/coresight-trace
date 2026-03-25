@@ -251,7 +251,7 @@ static u32 __afl_next_testcase(void)
 
   /* report that we are starting the target */
   if (write(FORKSRV_FD + 1, &child_pid, 4) != 4) return -1;
-  usleep(100);
+
   /* Resume child process. */
   kill(child_pid, SIGCONT);
 
