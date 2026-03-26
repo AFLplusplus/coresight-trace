@@ -369,7 +369,9 @@ static libcsdec_t init_decoder(struct map_info *map_info, int map_info_num)
     }
   }
   if (coverage) {
-    putenv("INSN_SAVE=1");
+    if (setenv("INSN_SAVE", "1", 1) != 0) {
+      perror("setenv");
+    }
   }
   switch (cov_type) {
     case edge_cov:
@@ -447,7 +449,7 @@ int export_trace(const char *trace_name, const char *trace_args_name)
   FILE *fp;
 
   ret = -1;
-  fprintf("Exporting a trace to %s and %s\n", trace_name, trace_args_name);
+  fprintf(stderr, "Exporting a trace to %s and %s\n", trace_name, trace_args_name);
   cwd = getcwd(NULL, 0);
   if (!cwd) {
     perror("getcwd");

@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
       {"board", required_argument, NULL, 'b'},
       {"cpu", required_argument, NULL, 'c'},
       {"decoding", required_argument, NULL, 'd'},
-      {"coverage", no_argument, NULL, "l" },
+      {"coverage", no_argument, NULL, 'l' },
       {"export", no_argument, NULL, 'e'},
       {"udmabuf", required_argument, NULL, 'u'},
       {"verbose", optional_argument, NULL, 'v'},
