@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <unistd.h>
+#include "libforksrv.h"
 
-void __cs_start_forkserver(void);
 char buff[10] = {0};
 
 void fuzzme(char* data) {
