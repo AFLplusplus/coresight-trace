@@ -362,8 +362,13 @@ static libcsdec_t init_decoder(struct map_info *map_info, int map_info_num)
     }
     for (i = 0; i < map_info_num; i++) {
       mem_img[i].data = map_info[i].buf;
-      char* bname = basename(map_info[i].path);
-      strncpy(mem_img[i].path, bname, strlen(bname));
+
+      char tmp[PATH_MAX];
+      strncpy(tmp, map_info[i].path, sizeof(tmp) - 1);
+      tmp[sizeof(tmp) - 1] = '\0';
+      const char *bname = basename(tmp); 
+      snprintf(mem_img[i].path, sizeof(mem_img[i].path), "%s", bname);
+            
       mem_img[i].size =
           (size_t)ALIGN_UP(map_info[i].end - map_info[i].start, PAGE_SIZE);
     }
