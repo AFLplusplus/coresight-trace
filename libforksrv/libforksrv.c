@@ -15,7 +15,21 @@
 #define FORKSRV_FD 198
 #define AFLCS_FORKSRV_FD (FORKSRV_FD - 3)
 
-static void __cs_start_forkserver(void) {
+void __cs_start_forkserver(void) {
+    if(getenv("__CS_PROXY") != NULL) {
+        /* CS-PROXY */  
+        fprintf(stdout, "Start forksrv\n");
+    } else {
+        /* CS-TRACE */
+        if(getenv("__CS_TRACE") != NULL) {  
+            fprintf(stdout, "sigstop for cs-trace\n");
+            raise(SIGSTOP);
+            return;
+        }else {
+            fprintf(stdout, "Run without cs-proxy/cs-trace\n");
+            return;
+        }
+    }
     int status;
     pid_t child_pid;
  
@@ -77,7 +91,7 @@ static void __cs_start_forkserver(void) {
         }
     }
 }
-
+#ifndef STATIC
 int __libc_start_main(int (*main)(int, char **, char **), int argc, char **argv,
                       void (*init)(void), void (*fini)(void),
                       void (*rtld_fini)(void), void *stack_end) {
@@ -93,15 +107,9 @@ int __libc_start_main(int (*main)(int, char **, char **), int argc, char **argv,
         fprintf(stderr, "Did not find original %s: %s\n", __func__, dlerror());
         exit(EXIT_FAILURE);
     }
-    printf("Hook main ok\n");
-  
-    if(getenv("CS_FORKSERVER") != NULL){
-        /* AFL-CS-START */  
-        do { __cs_start_forkserver(); } while(0);
-    }else{
-        /* CS-TRACE */  
-        raise(SIGSTOP);
-    }
+    printf("Hook __libc_start_main ok\n");
+    do { __cs_start_forkserver(); } while(0);
 
-  return orig(main, argc, argv, init, fini, rtld_fini, stack_end);
+    return orig(main, argc, argv, init, fini, rtld_fini, stack_end);
 }
+#endif

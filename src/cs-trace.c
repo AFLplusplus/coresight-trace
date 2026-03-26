@@ -42,6 +42,7 @@ extern int udmabuf_num;
 extern bool decoding_on;
 extern int trace_cpu;
 extern bool export_config;
+extern bool coverage;
 extern cov_type_t cov_type;
 
 extern unsigned char *trace_bitmap;
@@ -62,7 +63,7 @@ void child(char *argv[])
 
   char *cs_ld_preload = getenv("CS_LD_PRELOAD");
   char *cs_ld_lib_path = getenv("CS_LD_LIBRARY_PATH");
-  char *ld_no_forksrv = getenv("CS_NO_LD_FORKSRV");
+  char *cs_defer_forksrv = getenv("CS_DEFER_FORKSRV");
 
   if(cs_ld_preload != NULL){
     ld_preload = append_string(ld_preload,cs_ld_preload);
@@ -71,11 +72,11 @@ void child(char *argv[])
     ld_library_path = append_string(ld_library_path, cs_ld_lib_path);
   }
 
-  if(ld_no_forksrv == NULL){
+  if(cs_defer_forksrv == NULL){
     ld_preload = append_string(ld_preload,ld_forksrv_path);
   }
 
-  char* envp[] = {ld_preload, ld_library_path, NULL};
+  char* envp[] = {"__CS_TRACE=1",ld_preload, ld_library_path, NULL};
 
   fprintf(stdout, "Try run %s \nwith envp:\n", argv[0]);
    for (int i = 0; envp[i] != NULL; i++) {
@@ -136,8 +137,9 @@ static void usage(char *argv0)
           export_config);
   fprintf(stderr,
           "  -u, --udmabuf=INT\t\tspecify u-dma-buf device number to use "
-          "(default: %d)",
+          "(default: %d)\n",
           udmabuf_num);
+  fprintf(stderr, "  -l, --coverage\t\tcreate coverage file for lighthouse plugin\n");
   fprintf(stderr,
           "  -v, --verbose[=INT]\t\tverbose output level (default: %d)\n",
           registration_verbose);
@@ -150,6 +152,7 @@ int main(int argc, char *argv[])
       {"board", required_argument, NULL, 'b'},
       {"cpu", required_argument, NULL, 'c'},
       {"decoding", required_argument, NULL, 'd'},
+      {"coverage", no_argument, NULL, 'l' },
       {"export", no_argument, NULL, 'e'},
       {"udmabuf", required_argument, NULL, 'u'},
       {"verbose", optional_argument, NULL, 'v'},
@@ -166,7 +169,12 @@ int main(int argc, char *argv[])
   registration_verbose = 0;
   trace_bitmap_size = DEFAULT_TRACE_BITMAP_SIZE;
 
-  ld_forksrv_path=get_libforksrv_path("libforksrv.so");
+  if (argc < 3) {
+    usage(argv[0]);
+    exit(EXIT_SUCCESS);
+  }
+
+  ld_forksrv_path = get_libforksrv_path("libforksrv.so");
   if(access(ld_forksrv_path, F_OK) != 0){
     fprintf(stderr, "Error: libforksrv.so not found\n");
     return -1;
@@ -182,12 +190,7 @@ int main(int argc, char *argv[])
       exit(EXIT_FAILURE);
   }
 
-  if (argc < 3) {
-    usage(argv[0]);
-    exit(EXIT_SUCCESS);
-  }
-
-  while ((opt = getopt_long(argc, argv, "b:c:d:ev::h", long_options,
+  while ((opt = getopt_long(argc, argv, "b:c:d:lev::h", long_options,
                             &option_index)) != -1) {
     switch (opt) {
       case 'b':
@@ -209,6 +212,9 @@ int main(int argc, char *argv[])
         break;
       case 'e':
         export_config = true;
+        break;
+      case 'l':
+        coverage = true;
         break;
       case 'u':
         udmabuf_num = atoi(optarg);
@@ -234,9 +240,14 @@ int main(int argc, char *argv[])
     exit(EXIT_FAILURE);
   }
 
+  if(!decoding_on && coverage || coverage && (cov_type == path_cov)){
+    fprintf(stderr, "Error! The coverage option is only available while --decoding=edge\n", optarg);
+    exit(EXIT_FAILURE);
+  }
+
   argvp = &argv[optind];
-  if (!argvp) {
-    usage(argv[0]);
+  if (!argvp || access(argvp[0], F_OK) != 0) {
+    fprintf(stderr, "The target executable file '%s' was not found\n", argvp[0]);
     exit(EXIT_FAILURE);
   }
 

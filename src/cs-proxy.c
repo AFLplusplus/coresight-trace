@@ -180,6 +180,7 @@ static void __afl_start_forkserver(char *argv[])
 
     char *cs_ld_preload = getenv("CS_LD_PRELOAD");
     char *cs_ld_lib_path = getenv("CS_LD_LIBRARY_PATH");
+    char *cs_defer_forksrv = getenv("CS_DEFER_FORKSRV");
 
     if(cs_ld_preload != NULL){
       ld_preload = append_string(ld_preload,cs_ld_preload);
@@ -188,10 +189,11 @@ static void __afl_start_forkserver(char *argv[])
       ld_library_path = append_string(ld_library_path, cs_ld_lib_path);
     }
 
-    ld_preload = append_string(ld_preload,ld_forksrv_path);
-
+    if(cs_defer_forksrv == NULL){
+      ld_preload = append_string(ld_preload,ld_forksrv_path);
+    }
     
-    char* envp[] = {"CS_FORKSERVER=1", ld_preload, ld_library_path, NULL};
+    char* envp[] = {"__CS_PROXY=1", ld_preload, ld_library_path, NULL};
 
     DEBUGF("Try run target: %s \n with envp=\n", argv[0]);
       for (int i = 0; envp[i] != NULL; i++) {
@@ -263,6 +265,12 @@ static s32 __afl_end_testcase(s32 status)
   return 0;
 }
 
+void save_trace_on_abort_handler(int sig){
+  signal(SIGABRT, SIG_DFL);
+  export_trace("cstrace.bin", "decoderargs.txt");
+  abort();
+}
+
 /* you just need to modify the while() loop in this main() */
 
 int main(int argc, char *argv[])
@@ -272,6 +280,11 @@ int main(int argc, char *argv[])
   char **argvp;
   char *ptr;
 
+  if(signal(SIGABRT, save_trace_on_abort_handler) == SIG_ERR) {
+    perror("Failed to set signal handler");
+    return 1;
+  }
+ 
   ld_forksrv_path = get_libforksrv_path("libforksrv.so");
   if(access(ld_forksrv_path, F_OK) != 0){
     fprintf(stderr, "Error: libforksrv.so not found\n");
@@ -310,6 +323,9 @@ int main(int argc, char *argv[])
   for (i = 1; i < argc; i++) {
     if (!strcmp(argv[i], "--") && i + 1 < argc) {
       argvp = &argv[++i];
+      if (access(argvp[0], F_OK) != 0) {
+        FATAL("The target executable file '%s' was not found\n", argvp[0]);
+      }
       break;
     } else if (argc > 2 && i + 1 >= argc) {
       FATAL("Invalid option '%s'", argv[i]);

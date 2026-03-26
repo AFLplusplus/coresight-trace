@@ -75,6 +75,7 @@ int udmabuf_num = DEFAULT_UDMABUF_NUM;
 bool decoding_on = false;
 int trace_cpu = -1;
 bool export_config = false;
+bool coverage = false;
 unsigned long etr_ram_addr = 0;
 size_t etr_ram_size = 0;
 int range_count = 0;
@@ -361,11 +362,22 @@ static libcsdec_t init_decoder(struct map_info *map_info, int map_info_num)
     }
     for (i = 0; i < map_info_num; i++) {
       mem_img[i].data = map_info[i].buf;
+
+      char tmp[PATH_MAX];
+      strncpy(tmp, map_info[i].path, sizeof(tmp) - 1);
+      tmp[sizeof(tmp) - 1] = '\0';
+      const char *bname = basename(tmp); 
+      snprintf(mem_img[i].path, sizeof(mem_img[i].path), "%s", bname);
+            
       mem_img[i].size =
           (size_t)ALIGN_UP(map_info[i].end - map_info[i].start, PAGE_SIZE);
     }
   }
-
+  if (coverage) {
+    if (setenv("INSN_SAVE", "1", 1) != 0) {
+      perror("setenv");
+    }
+  }
   switch (cov_type) {
     case edge_cov:
       decoder = libcsdec_init_edge(trace_bitmap, trace_bitmap_size,
@@ -433,7 +445,7 @@ static void free_trace_buf(void)
   }
 }
 
-static int export_trace(const char *trace_name, const char *trace_args_name)
+int export_trace(const char *trace_name, const char *trace_args_name)
 {
   int ret;
   char *cwd;
@@ -442,7 +454,7 @@ static int export_trace(const char *trace_name, const char *trace_args_name)
   FILE *fp;
 
   ret = -1;
-
+  fprintf(stderr, "Exporting a trace to %s and %s\n", trace_name, trace_args_name);
   cwd = getcwd(NULL, 0);
   if (!cwd) {
     perror("getcwd");
